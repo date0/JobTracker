@@ -12,7 +12,7 @@ const navigation = [
   { label: "Vacantes", icon: "▣", href: "/jobs", active: false },
   { label: "Candidaturas", icon: "↗", href: "/applications", active: false },
   { label: "Entrevistas", icon: "◷", href: "/interviews", active: false },
-  { label: "Mi currículum", icon: "▧", href: "#", active: false },
+  { label: "Mi currículum", icon: "▧", href: "/resume", active: false },
 ];
 
 function formatMetric(value: number): string {

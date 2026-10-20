@@ -1,0 +1,11 @@
+USE jobtracker;
+
+ALTER TABLE resume_profiles
+    ADD COLUMN full_name VARCHAR(255) NULL,
+    ADD COLUMN phone VARCHAR(80) NULL,
+    ADD COLUMN email VARCHAR(320) NULL,
+    ADD COLUMN state VARCHAR(120) NULL,
+    ADD COLUMN country VARCHAR(120) NULL,
+    ADD COLUMN postal_code VARCHAR(20) NULL,
+    ADD COLUMN linkedin VARCHAR(500) NULL,
+    ADD COLUMN portfolio VARCHAR(1000) NULL;
