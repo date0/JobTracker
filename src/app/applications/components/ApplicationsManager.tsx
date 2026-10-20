@@ -96,9 +96,6 @@ export default function ApplicationsManager() {
   const [eventDate, setEventDate] = useState("");
   const [savingEventFor, setSavingEventFor] = useState<string | null>(null);
   const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
     try {
       const [applicationsResponse, jobsResponse] = await Promise.all([
         fetch("/api/applications"),
@@ -120,6 +117,7 @@ export default function ApplicationsManager() {
         );
       }
 
+      setError("");
       setApplications(applicationsData.applications ?? []);
       setJobs(jobsData.jobs ?? []);
     } catch (err) {
@@ -134,6 +132,8 @@ export default function ApplicationsManager() {
   }, []);
 
   useEffect(() => {
+    // La función realiza fetch asíncrono antes de actualizar el estado.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Carga inicial asíncrona de datos.
     void loadData();
   }, [loadData]);
 

@@ -22,10 +22,6 @@ type ApplicationRow = {
   status: ApplicationStatus;
 };
 
-type UpdateResult = {
-  affectedRows: number;
-};
-
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await auth();
 

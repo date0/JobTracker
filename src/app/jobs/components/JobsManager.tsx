@@ -44,9 +44,6 @@ export default function JobsManager() {
   const [search, setSearch] = useState("");
 
   const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
     try {
       const [jobsResponse, companiesResponse] = await Promise.all([
         fetch("/api/jobs"),
@@ -68,6 +65,7 @@ export default function JobsManager() {
         );
       }
 
+      setError("");
       setJobs(jobsData.jobs ?? []);
       setCompanies(companiesData.companies ?? []);
     } catch (err) {
@@ -82,6 +80,8 @@ export default function JobsManager() {
   }, []);
 
   useEffect(() => {
+    // La función realiza fetch asíncrono antes de actualizar el estado.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Carga inicial asíncrona de datos.
     void loadData();
   }, [loadData]);
 

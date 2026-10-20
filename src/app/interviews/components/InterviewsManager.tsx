@@ -98,9 +98,6 @@ export default function InterviewsManager() {
   const [postInterviewNotes, setPostInterviewNotes] = useState("");
 
   const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
     try {
       const [applicationsResponse, interviewsResponse] = await Promise.all([
         fetch("/api/applications"),
@@ -122,6 +119,7 @@ export default function InterviewsManager() {
         );
       }
 
+      setError("");
       setApplications(applicationsData.applications ?? []);
       setInterviews(interviewsData.interviews ?? []);
     } catch (err) {
@@ -134,6 +132,8 @@ export default function InterviewsManager() {
   }, []);
 
   useEffect(() => {
+    // La función realiza fetch asíncrono antes de actualizar el estado.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Carga inicial asíncrona de datos.
     void loadData();
   }, [loadData]);
 

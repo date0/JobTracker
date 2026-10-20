@@ -27,9 +27,6 @@ export default function CompaniesManager() {
   const [message, setMessage] = useState("");
 
   const loadCompanies = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
     try {
       const response = await fetch("/api/companies");
       const data: CompaniesResponse = await response.json();
@@ -38,6 +35,7 @@ export default function CompaniesManager() {
         throw new Error(data.error || "No se pudieron cargar las empresas.");
       }
 
+      setError("");
       setCompanies(data.companies ?? []);
     } catch (err) {
       setError(
@@ -51,6 +49,8 @@ export default function CompaniesManager() {
   }, []);
 
   useEffect(() => {
+    // La función realiza fetch asíncrono antes de actualizar el estado.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Carga inicial asíncrona de datos.
     void loadCompanies();
   }, [loadCompanies]);
 
