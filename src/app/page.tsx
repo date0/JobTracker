@@ -89,6 +89,7 @@ export default async function Home() {
        e.title,
        e.details,
        e.event_at,
+       CASE WHEN e.event_at < NOW() THEN 1 ELSE 0 END AS is_overdue,
        j.title AS job_title,
        c.name AS company_name,
        a.status AS application_status
@@ -485,12 +486,11 @@ export default async function Home() {
             <div className="grid gap-3 lg:grid-cols-2">
               {followUps.map((item) => {
                 const rawEventDate = item.event_at;
-
                 const eventDate =
                   rawEventDate instanceof Date
                     ? rawEventDate
                     : new Date(String(rawEventDate).replace(" ", "T"));
-                const overdue = eventDate.getTime() < Date.now();
+                const overdue = Number(item.is_overdue) === 1;
 
                 return (
                   <article
