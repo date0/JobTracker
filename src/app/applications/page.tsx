@@ -1,11 +1,18 @@
-import Link from "next/link";
+/*import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/../auth";
 import ApplicationsManager from "./components/ApplicationsManager";
-
+*/
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
+import { auth } from "@/../auth";
+import ApplicationsManager from "./components/ApplicationsManager";
 export const instant = false;
 
+
 export default async function ApplicationsPage() {
+  await connection();
   const session = await auth();
 
   if (!session?.user) {

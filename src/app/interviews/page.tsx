@@ -1,5 +1,6 @@
 
 import Link from "next/link";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/../auth";
 import InterviewsManager from "./components/InterviewsManager";
@@ -7,6 +8,7 @@ import InterviewsManager from "./components/InterviewsManager";
 export const instant = false;
 
 export default async function InterviewsPage() {
+  await connection();
   const session = await auth();
 
   if (!session?.user) {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/../auth";
 import CompaniesManager from "./components/CompaniesManager";
@@ -6,6 +7,7 @@ import CompaniesManager from "./components/CompaniesManager";
 export const instant = false;
 
 export default async function CompaniesPage() {
+  await connection();
   const session = await auth();
 
   if (!session?.user) {

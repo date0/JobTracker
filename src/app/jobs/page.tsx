@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { auth } from "@/../auth";
 import JobsManager from "./components/JobsManager";
@@ -6,6 +7,7 @@ import JobsManager from "./components/JobsManager";
 export const instant = false;
 
 export default async function JobsPage() {
+  await connection();
   const session = await auth();
 
   if (!session?.user) {
