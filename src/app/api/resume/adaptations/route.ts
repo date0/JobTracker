@@ -252,7 +252,7 @@ export async function POST(request: Request) {
       "EXPERIENCIA LABORAL",
       resume.experience || "[Completar experiencia laboral]",
       "",
-      "HABILIDADES Y REQUISITOS RELEVANTES CONFIRMADOS POR EL USUARIO",
+      "REQUISITOS QUE EL USUARIO DECLARA PODER RESPALDAR",
       ...confirmedRequirements.map((item) => `- ${item}`),
       "",
       "HABILIDADES Y TECNOLOGÍAS DEL CV MAESTRO",

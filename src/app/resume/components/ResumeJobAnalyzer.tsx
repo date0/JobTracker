@@ -8,16 +8,24 @@ type Job = {
   company_name?: string | null;
 };
 
-type ItemComparison = {
-  matched: string[];
-  missing: string[];
+
+type SemanticRequirement = {
+  requirement: string;
+  category:
+    | "technology"
+    | "experience"
+    | "responsibility"
+    | "certification"
+    | "other";
+  status: "direct" | "transferable" | "not_demonstrated";
+  evidence: string;
+  reasoning: string;
 };
 
-type CategoryKey =
-  | "technologies"
-  | "experience"
-  | "certifications"
-  | "responsibilities";
+type SemanticAnalysis = {
+  summary: string;
+  requirements: SemanticRequirement[];
+};
 
 type Analysis = {
   jobId: number;
@@ -26,7 +34,14 @@ type Analysis = {
   totalKeywords: number;
   matchedKeywords: string[];
   missingKeywords: string[];
-  categories: Record<CategoryKey, ItemComparison>;
+  categories: Record<
+    "technologies" | "experience" | "certifications" | "responsibilities",
+    {
+      matched: string[];
+      missing: string[];
+    }
+  >;
+  semantic: SemanticAnalysis;
   notice: string;
 };
 
@@ -34,7 +49,9 @@ type Requirement = {
   key: string;
   text: string;
   category: string;
-  source: "Encontrado en el CV" | "Pendiente de revisión";
+  status: SemanticRequirement["status"];
+  evidence: string;
+  reasoning: string;
 };
 
 type SavedAdaptation = {
@@ -47,99 +64,19 @@ type SavedAdaptation = {
   updatedAt: string;
 };
 
-const categoryDefinitions: {
-  key: CategoryKey;
-  title: string;
-  description: string;
-}[] = [
-  {
-    key: "technologies",
-    title: "Tecnologías y herramientas",
-    description: "Tecnologías detectadas en la descripción de la vacante.",
-  },
-  {
-    key: "experience",
-    title: "Experiencia y nivel",
-    description: "Frases relacionadas con años, seniority y experiencia requerida.",
-  },
-  {
-    key: "responsibilities",
-    title: "Responsabilidades",
-    description: "Funciones y actividades detectadas en la vacante.",
-  },
-  {
-    key: "certifications",
-    title: "Certificaciones y credenciales",
-    description: "Certificaciones o credenciales mencionadas en la descripción.",
-  },
-];
-
 function getRequirements(analysis: Analysis): Requirement[] {
-  const requirements: Requirement[] = [];
-  const seen = new Set<string>();
-
-  for (const category of categoryDefinitions) {
-    const comparison = analysis.categories[category.key];
-
-    for (const item of comparison.matched) {
-      const normalized = item.trim().toLocaleLowerCase();
-
-      if (normalized && !seen.has(normalized)) {
-        seen.add(normalized);
-        requirements.push({
-          key: normalized,
-          text: item,
-          category: category.title,
-          source: "Encontrado en el CV",
-        });
-      }
-    }
-
-    for (const item of comparison.missing) {
-      const normalized = item.trim().toLocaleLowerCase();
-
-      if (normalized && !seen.has(normalized)) {
-        seen.add(normalized);
-        requirements.push({
-          key: normalized,
-          text: item,
-          category: category.title,
-          source: "Pendiente de revisión",
-        });
-      }
-    }
-  }
-
-  for (const keyword of analysis.matchedKeywords) {
-    const normalized = keyword.trim().toLocaleLowerCase();
-
-    if (normalized && !seen.has(normalized)) {
-      seen.add(normalized);
-      requirements.push({
-        key: normalized,
-        text: keyword,
-        category: "Palabras clave",
-        source: "Encontrado en el CV",
-      });
-    }
-  }
-
-  for (const keyword of analysis.missingKeywords) {
-    const normalized = keyword.trim().toLocaleLowerCase();
-
-    if (normalized && !seen.has(normalized)) {
-      seen.add(normalized);
-      requirements.push({
-        key: normalized,
-        text: keyword,
-        category: "Palabras clave",
-        source: "Pendiente de revisión",
-      });
-    }
-  }
-
-  return requirements;
+  return analysis.semantic.requirements.map((item, index) => ({
+    key: `${item.category}-${item.requirement
+      .trim()
+      .toLocaleLowerCase()}-${index}`,
+    text: item.requirement,
+    category: item.category,
+    status: item.status,
+    evidence: item.evidence,
+    reasoning: item.reasoning,
+  }));
 }
+
 
 export default function ResumeJobAnalyzer() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -672,136 +609,100 @@ export default function ResumeJobAnalyzer() {
               <h3 className="text-lg font-semibold">{analysis.jobTitle}</h3>
             </div>
 
-            <div className="rounded-xl bg-base-200 p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="font-semibold">
-                  Coincidencia textual general
-                </span>
-                <span className="text-2xl font-bold tabular-nums">
-                  {analysis.score}%
-                </span>
-              </div>
-              <progress
-                className="progress progress-primary w-full"
-                value={analysis.score}
-                max={100}
-                aria-label="Porcentaje de coincidencia textual"
-              />
-              <p className="mt-2 text-xs text-base-content/60">
-                Basado en términos detectados en la descripción, no en una
-                evaluación de idoneidad profesional.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {categoryDefinitions.map((category) => {
-                const comparison = analysis.categories[category.key];
-
-                return (
-                  <section
-                    key={category.key}
-                    className="rounded-xl border border-base-300 p-4"
-                  >
-                    <h4 className="font-semibold">{category.title}</h4>
-                    <p className="mt-1 text-xs text-base-content/60">
-                      {category.description}
-                    </p>
-
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-success">
-                        Encontrado en el CV ({comparison.matched.length})
-                      </p>
-
-                      {comparison.matched.length > 0 ? (
-                        <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
-                          {comparison.matched.map((item) => (
-                            <li key={item} className="break-words">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-1 text-sm text-base-content/55">
-                          No se encontraron coincidencias textuales.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-4 border-t border-base-300 pt-3">
-                      <p className="text-sm font-medium text-warning">
-                        Pendiente de revisión ({comparison.missing.length})
-                      </p>
-
-                      {comparison.missing.length > 0 ? (
-                        <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
-                          {comparison.missing.map((item) => (
-                            <li key={item} className="break-words">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-1 text-sm text-base-content/55">
-                          No hay elementos pendientes en esta categoría.
-                        </p>
-                      )}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-
             <section className="rounded-xl border border-base-300 p-4">
-              <h4 className="font-semibold">Palabras clave adicionales</h4>
-              <p className="mt-1 text-xs text-base-content/60">
-                Otros términos de la descripción que pueden ayudarte a revisar
-                el contenido del CV.
+              <h4 className="text-lg font-semibold">
+                Análisis semántico de la vacante
+              </h4>
+              <p className="mt-2 text-sm leading-relaxed">
+                {analysis.semantic.summary}
               </p>
-
-              <div className="mt-3">
-                <p className="text-sm font-medium text-success">
-                  Coincidencias
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {analysis.matchedKeywords.length > 0 ? (
-                    analysis.matchedKeywords.map((keyword) => (
-                      <span
-                        key={keyword}
-                        className="badge badge-success badge-outline"
-                      >
-                        {keyword}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-base-content/55">
-                      Ninguna detectada.
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <p className="text-sm font-medium text-warning">
-                  Para revisar
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {analysis.missingKeywords.length > 0 ? (
-                    analysis.missingKeywords.map((keyword) => (
-                      <span
-                        key={keyword}
-                        className="badge badge-warning badge-outline"
-                      >
-                        {keyword}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-base-content/55">
-                      Ninguno detectado.
-                    </span>
-                  )}
-                </div>
-              </div>
             </section>
+
+            {(
+              [
+                {
+                  status: "direct",
+                  title: "Experiencia directa",
+                  description:
+                    "El CV contiene evidencia explícita relacionada con estos requisitos.",
+                  badge: "badge-success",
+                },
+                {
+                  status: "transferable",
+                  title: "Experiencia transferible",
+                  description:
+                    "Existe experiencia relacionada, pero no demuestra directamente el requisito específico.",
+                  badge: "badge-info",
+                },
+                {
+                  status: "not_demonstrated",
+                  title: "No demostrado en el CV",
+                  description:
+                    "No se encontró evidencia suficiente. Esto no significa necesariamente que carezcas de esa experiencia.",
+                  badge: "badge-warning",
+                },
+              ] as const
+            ).map((group) => {
+              const items = requirements.filter(
+                (item) => item.status === group.status,
+              );
+
+              return (
+                <section
+                  key={group.status}
+                  className="rounded-xl border border-base-300 p-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-semibold">{group.title}</h4>
+                    <span className={`badge ${group.badge}`}>
+                      {items.length}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-xs text-base-content/60">
+                    {group.description}
+                  </p>
+
+                  {items.length > 0 ? (
+                    <div className="mt-4 space-y-3">
+                      {items.map((item) => (
+                        <article
+                          key={item.key}
+                          className="rounded-lg bg-base-200 p-3"
+                        >
+                          <p className="break-words text-sm font-medium">
+                            {item.text}
+                          </p>
+
+                          <p className="mt-1 text-xs text-base-content/60">
+                            Categoría: {item.category}
+                          </p>
+
+                          {item.evidence && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-success">
+                                Evidencia literal del CV
+                              </p>
+                              <blockquote className="mt-1 border-l-2 border-success/50 pl-3 text-sm italic">
+                                {item.evidence}
+                              </blockquote>
+                            </div>
+                          )}
+
+                          <p className="mt-3 text-sm text-base-content/75">
+                            {item.reasoning}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-base-content/55">
+                      No hay requisitos en esta clasificación.
+                    </p>
+                  )}
+                </section>
+              );
+            })}
 
             <p className="text-xs text-base-content/60">{analysis.notice}</p>
 
@@ -815,6 +716,15 @@ export default function ResumeJobAnalyzer() {
                   demostrar. Que un término no aparezca en el CV no significa
                   necesariamente que carezcas de esa experiencia.
                 </p>
+                <div className="alert alert-warning mt-3 text-sm">
+                  <span>
+                    Importante: seleccionar un requisito significa que declaras
+                    poder respaldarlo con experiencia real. JobTracker no
+                    verifica automáticamente esa experiencia. Antes de utilizar
+                    el borrador, asegúrate de poder demostrar cada requisito
+                    mediante proyectos, responsabilidades o conocimientos reales.
+                  </span>
+                </div>
               </div>
 
               {requirements.length > 0 ? (
@@ -841,7 +751,23 @@ export default function ResumeJobAnalyzer() {
                           {requirement.text}
                         </span>
                         <span className="mt-1 block text-xs text-base-content/60">
-                          {requirement.category} · {requirement.source}
+                          {requirement.category} · {
+                            requirement.status === "direct"
+                              ? "Experiencia directa"
+                              : requirement.status === "transferable"
+                                ? "Experiencia transferible"
+                                : "No demostrado en el CV"
+                          }
+                        </span>
+
+                        {requirement.evidence && (
+                          <span className="mt-2 block text-xs text-base-content/70">
+                            Evidencia: “{requirement.evidence}”
+                          </span>
+                        )}
+
+                        <span className="mt-1 block text-xs text-base-content/60">
+                          {requirement.reasoning}
                         </span>
                       </span>
                     </label>

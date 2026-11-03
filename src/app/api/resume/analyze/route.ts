@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/../auth";
 import pool from "@/lib/db";
+import { analyzeResumeSemantically } from "@/lib/resume-analysis";
 
 type ResumeRow = {
   headline: string | null;
@@ -61,6 +62,7 @@ function containsTerm(text: string, term: string): boolean {
 
 function extractKeywords(value: string): string[] {
   const words = normalize(value).match(/[a-z0-9+#./-]+/g) ?? [];
+
   return [...new Set(
     words
       .map((word) => word.replace(/^[./-]+|[./-]+$/g, ""))
@@ -106,6 +108,7 @@ function classifySentences(description: string) {
 
 function compareItems(items: string[], resumeText: string) {
   const uniqueItems = [...new Set(items)];
+
   return {
     matched: uniqueItems.filter((item) => containsTerm(resumeText, item)),
     missing: uniqueItems.filter((item) => !containsTerm(resumeText, item)),
@@ -207,12 +210,15 @@ export async function POST(request: Request) {
       .filter((value): value is string => typeof value === "string")
       .join("\n");
 
+    // Análisis local: se conserva temporalmente para comparar resultados.
     const normalizedDescription = normalize(description);
+
     const technologies = TECHNOLOGIES.filter((technology) =>
       containsTerm(normalizedDescription, technology),
     );
 
     const sentenceCategories = classifySentences(description);
+
     const categories = {
       technologies: compareItems(technologies, resumeText),
       experience: compareItems(sentenceCategories.experience, resumeText),
@@ -227,31 +233,144 @@ export async function POST(request: Request) {
     };
 
     const keywords = extractKeywords(description);
+
     const matchedKeywords = keywords.filter((keyword) =>
       containsTerm(resumeText, keyword),
     );
+
     const missingKeywords = keywords.filter(
       (keyword) => !containsTerm(resumeText, keyword),
     );
 
     const totalKeywords = keywords.length;
+
     const score =
       totalKeywords > 0
         ? Math.round((matchedKeywords.length / totalKeywords) * 100)
         : 0;
+
+    // Análisis semántico mediante OpenAI.
+    // Si el servicio no está disponible, se utiliza el análisis local.
+    let semantic;
+    let fallbackNotice: string | undefined;
+
+    try {
+      semantic = await analyzeResumeSemantically({
+        resumeText,
+        jobTitle: job.title,
+        jobDescription: description,
+      });
+    } catch (openAIError) {
+      const errorRecord =
+        openAIError && typeof openAIError === "object"
+          ? (openAIError as Record<string, unknown>)
+          : {};
+
+      const nestedError =
+        errorRecord.error && typeof errorRecord.error === "object"
+          ? (errorRecord.error as Record<string, unknown>)
+          : {};
+
+      const status = Number(errorRecord.status ?? 0);
+      const code = String(
+        errorRecord.code ?? nestedError.code ?? "",
+      );
+      const errorType = String(
+        errorRecord.type ?? nestedError.type ?? "",
+      );
+
+      let reason = "El servicio de análisis semántico no está disponible.";
+
+      if (
+        code === "credit_balance_exhausted" ||
+        errorType === "insufficient_quota"
+      ) {
+        reason =
+          "OpenAI no tiene créditos disponibles. Revisa la facturación de la API.";
+      } else if (status === 429) {
+        reason =
+          "OpenAI alcanzó un límite de uso. Intenta nuevamente más tarde.";
+      } else if (status === 401) {
+        reason =
+          "OpenAI rechazó la API key. Revisa su configuración.";
+      } else if (status === 403) {
+        reason =
+          "La API key no tiene permisos para utilizar el servicio solicitado.";
+      } else if (status >= 500) {
+        reason =
+          "OpenAI presenta un problema temporal. Intenta nuevamente más tarde.";
+      }
+
+      console.warn(
+        "Semantic resume analysis unavailable; using local fallback:",
+        {
+          status,
+          code,
+          errorType,
+          message:
+            openAIError instanceof Error
+              ? openAIError.message
+              : String(openAIError),
+        },
+      );
+
+      const fallbackRequirements = [
+        ...categories.technologies.missing.map((item) => ({
+          requirement: item,
+          category: "technology" as const,
+        })),
+        ...categories.experience.missing.map((item) => ({
+          requirement: item,
+          category: "experience" as const,
+        })),
+        ...categories.certifications.missing.map((item) => ({
+          requirement: item,
+          category: "certification" as const,
+        })),
+        ...categories.responsibilities.missing.map((item) => ({
+          requirement: item,
+          category: "responsibility" as const,
+        })),
+      ];
+
+      semantic = {
+        summary:
+          "OpenAI no pudo realizar el análisis semántico. Este resultado utiliza coincidencias textuales locales y no interpreta equivalencias entre tecnologías, responsabilidades o experiencias.",
+        requirements: fallbackRequirements.map((item) => ({
+          requirement: item.requirement,
+          category: item.category,
+          status: "not_demonstrated" as const,
+          evidence: "",
+          reasoning:
+            "El análisis local no encontró una coincidencia textual en el CV. Esto no demuestra que carezcas de esta experiencia; revisa el requisito y confirma manualmente si puedes respaldarlo.",
+        })),
+      };
+
+      fallbackNotice =
+        "ANÁLISIS ALTERNATIVO: " +
+        reason +
+        " Se muestran únicamente requisitos sin coincidencia textual local. No es un análisis semántico y no determina si tienes experiencia equivalente. Revisa y confirma manualmente cada requisito.";
+    }
 
     return NextResponse.json({
       success: true,
       analysis: {
         jobId: job.id,
         jobTitle: job.title,
+
+        // Resultado heurístico anterior, conservado temporalmente.
         score,
         totalKeywords,
         matchedKeywords: matchedKeywords.slice(0, 30),
         missingKeywords: missingKeywords.slice(0, 30),
         categories,
+
+        // Nuevo resultado semántico.
+        semantic,
+
         notice:
-          "La clasificación es heurística y compara texto. Los elementos pendientes requieren revisión: no prueban que carezcas de esa experiencia o certificación. El porcentaje no mide tu idoneidad para el puesto.",
+          fallbackNotice ??
+          "El análisis local utiliza coincidencias textuales. El análisis semántico utiliza IA para interpretar los requisitos. Las conclusiones deben revisarse manualmente y no demuestran por sí solas la idoneidad profesional.",
       },
     });
   } catch (error) {
@@ -265,7 +384,10 @@ export async function POST(request: Request) {
     console.error("Failed to analyze resume:", error);
 
     return NextResponse.json(
-      { success: false, error: "No se pudo analizar el CV" },
+      {
+        success: false,
+        error: "No se pudo analizar el CV. Comprueba la configuración de OpenAI y vuelve a intentarlo.",
+      },
       { status: 500 },
     );
   }
