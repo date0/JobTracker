@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { auth } from "@/../auth";
 import ResumeEditor from "./components/ResumeEditor";
+import ResumeStructureReview from "./components/ResumeStructureReview";
+import ResumeStructureHistory from "./components/ResumeStructureHistory";
 import ResumeJobAnalyzer from "./components/ResumeJobAnalyzer";
 
 export const instant = false;
@@ -42,6 +44,14 @@ export default async function ResumePage() {
         </header>
 
         <ResumeEditor />
+
+        <div className="mt-8">
+          <ResumeStructureReview />
+        </div>
+
+        <div className="mt-8">
+          <ResumeStructureHistory />
+        </div>
 
         <div className="mt-8">
           <ResumeJobAnalyzer />
